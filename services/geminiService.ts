@@ -1,33 +1,53 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-export const generateAnalysis = async (summary: any): Promise<any> => {
-  // Initialize right before call as per guidelines
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+// Use gemini-3-pro-preview for complex reasoning tasks involving multiple data sources and grounding.
+export const generateAnalysis = async (summary: any, mascotImages?: { swoop?: string, kcWolf?: string }): Promise<any> => {
+  // Always create a new instance right before making an API call to ensure the latest API key is used.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = `
-    You are a professional broadcast analyst. 
-    CURRENT CONTEXT: It is the 2025 Super Bowl (SB LIX) between the Kansas City Chiefs and the Philadelphia Eagles.
+  const textPart = {
+    text: `
+    You are a professional broadcast analyst for SB LIX (Chiefs vs Eagles).
+    DATA: ${JSON.stringify(summary)}
+    TASK: Synthesize ESPN stats with Google Search updates and visual context from provided mascot images.
     
-    CRITICAL INSTRUCTION: 
-    1. Use GOOGLE SEARCH to find the ACTUAL halftime score and key highlights of the 2025 Super Bowl (Chiefs vs Eagles).
-    2. The provided local summary (if any) is for a DIFFERENT game. DISREGARD IT if it contradicts the 2025 live data.
-    3. Return a JSON object with exactly these fields:
-       - "mainPoints": (array of 5-7 punchy halftime bullet points)
-       - "halftimeRecap": (a 2-3 sentence summary paragraph)
-       - "narrationScript": (a broadcast-ready script for an AI avatar)
-       - "keysToWin": {
-           "team1": { "name": "Chiefs", "keys": ["key1", "key2"] },
-           "team2": { "name": "Eagles", "keys": ["key1", "key2"] }
-         }
+    If mascot images are provided, use their visual characteristics (colors, energy, design) to flavor the scripts.
     
-    Ensure the JSON is valid and only includes factual data from the 2025 game.
-  `;
+    Return JSON:
+    - "mainPoints": (5-7 points)
+    - "halftimeRecap": (Summary)
+    - "narrationScript": (Broadcaster script)
+    - "swoopScript": (A 15-20 second script for Swoop, the Philadelphia Eagles mascot. High-energy, focus on Philly strategy. Reference visual traits if an image was provided.)
+    - "kcWolfScript": (A 15-20 second script for KC Wolf, the Kansas City Chiefs mascot. High-energy, focus on KC strategy. Reference visual traits if an image was provided.)
+    - "keysToWin": { "team1": { "name": "Chiefs", "keys": [] }, "team2": { "name": "Eagles", "keys": [] } }
+    - "combinedStats": { "passing": { "team1": "", "team2": "" }, "rushing": { "team1": "", "team2": "" }, "turnovers": { "team1": "", "team2": "" } }
+  `};
+
+  const parts: any[] = [textPart];
+
+  // Add visual context if images are provided for script grounding
+  if (mascotImages?.swoop) {
+    parts.push({
+      inlineData: {
+        data: mascotImages.swoop.replace(/^data:image\/\w+;base64,/, ''),
+        mimeType: 'image/png'
+      }
+    });
+  }
+  if (mascotImages?.kcWolf) {
+    parts.push({
+      inlineData: {
+        data: mascotImages.kcWolf.replace(/^data:image\/\w+;base64,/, ''),
+        mimeType: 'image/png'
+      }
+    });
+  }
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
+      model: 'gemini-3-pro-preview',
+      contents: { parts },
       config: {
         tools: [{ googleSearch: {} }],
         temperature: 0.1,
@@ -35,14 +55,10 @@ export const generateAnalysis = async (summary: any): Promise<any> => {
     });
 
     const text = response.text || "";
-    
-    // Extract JSON from potential markdown block
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     const cleanedJson = jsonMatch ? jsonMatch[0] : text;
-    
     const parsed = JSON.parse(cleanedJson);
 
-    // Extract grounding chunks for source transparency
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = groundingChunks
       .filter((chunk: any) => chunk.web)
@@ -53,7 +69,59 @@ export const generateAnalysis = async (summary: any): Promise<any> => {
 
     return { ...parsed, sources };
   } catch (error) {
-    console.error("Gemini Search Error:", error);
-    throw new Error("The broadcast engine encountered an error fetching live 2025 data. Please try again.");
+    console.error("Analysis Error:", error);
+    throw error;
+  }
+};
+
+export const generateMascotVideo = async (script: string, mascotName: string, imageBase64?: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  const videoPrompt = `A 3D cinematic animation of ${mascotName}, the NFL mascot, performing a professional halftime report. The mascot is speaking directly to the camera with expressive gestures and a vibrant energy. The setting is a futuristic, glowing sports stadium at night. Professional studio lighting, 4k resolution, high-quality character animation. The mascot should look identical to the provided reference image.`;
+
+  try {
+    const videoConfig: any = {
+      model: 'veo-3.1-fast-generate-preview',
+      prompt: videoPrompt,
+      config: {
+        numberOfVideos: 1,
+        resolution: '720p',
+        aspectRatio: '16:9'
+      }
+    };
+
+    if (imageBase64) {
+      const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      videoConfig.image = {
+        imageBytes: cleanBase64,
+        mimeType: 'image/png'
+      };
+    }
+
+    let operation = await ai.models.generateVideos(videoConfig);
+
+    // Poll for video generation completion
+    while (!operation.done) {
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      operation = await ai.operations.getVideosOperation({ operation: operation });
+    }
+
+    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+    if (!downloadLink) throw new Error("Video generation failed to return a valid URI.");
+    
+    // As per guidelines, we must fetch the MP4 bytes using the API key and handle the response.
+    // Fetching the blob and creating an Object URL is the most reliable way to display it in a video tag.
+    const urlWithKey = `${downloadLink}${downloadLink.includes('?') ? '&' : '?'}key=${process.env.API_KEY}`;
+    const videoResponse = await fetch(urlWithKey);
+    
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to fetch video content: ${videoResponse.statusText}`);
+    }
+
+    const videoBlob = await videoResponse.blob();
+    return URL.createObjectURL(videoBlob);
+  } catch (error) {
+    console.error(`Video Generation Error for ${mascotName}:`, error);
+    throw error;
   }
 };

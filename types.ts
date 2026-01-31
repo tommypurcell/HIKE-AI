@@ -24,6 +24,10 @@ export interface GameSummary {
 
 export interface AnalysisResponse {
   halftimeRecap: string;
+  mainPoints: string[];
+  narrationScript: string;
+  swoopScript: string; // Script for Eagles mascot Swoop
+  kcWolfScript: string; // Script for Chiefs mascot KC Wolf
   keysToWin: {
     team1: {
       name: string;
@@ -34,8 +38,13 @@ export interface AnalysisResponse {
       keys: string[];
     };
   };
-  narrationScript: string;
-  thought?: string; // Captured reasoning from Gemini
+  combinedStats: {
+    [key: string]: {
+      team1: string;
+      team2: string;
+    };
+  };
+  sources?: { title: string; uri: string }[];
 }
 
 export interface MascotImages {

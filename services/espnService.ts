@@ -22,22 +22,18 @@ export const parseGameSummary = (data: any): GameSummary => {
   const competitors = competition.competitors || [];
   const boxscore = data?.boxscore || { teams: [] };
 
-  // Super Bowl LVIII specific IDs: 
-  // SF: 25, KC: 12
-  const findTeamById = (id: string) => {
-    const competitor = competitors.find((c: any) => String(c.id) === id);
-    if (!competitor) return null;
-
+  const parseTeam = (competitor: any): TeamInfo => {
     const team = competitor.team || {};
+    const teamId = String(team.id);
     
-    // Halftime Score Calculation
+    // Halftime Score Calculation (Sum of Q1 + Q2)
     const linescores = competitor.linescores || [];
     const q1 = parseInt(linescores[0]?.value || "0", 10);
     const q2 = parseInt(linescores[1]?.value || "0", 10);
     const halftimeScore = q1 + q2;
 
-    // Stats matching
-    const teamBox = boxscore.teams?.find((t: any) => String(t.team?.id) === id) || {};
+    // Detailed Stats from Boxscore
+    const teamBox = boxscore.teams?.find((t: any) => String(t.team?.id) === teamId) || {};
     const statsArray = teamBox.statistics || [];
     const stats = statsArray.reduce((acc: any, curr: any) => {
       if (curr.name && curr.displayValue) acc[curr.name] = curr.displayValue;
@@ -45,28 +41,33 @@ export const parseGameSummary = (data: any): GameSummary => {
     }, {});
 
     return {
-      id: team.id,
-      name: team.displayName,
-      abbreviation: team.abbreviation,
-      logo: team.logos?.[0]?.href || team.logo,
+      id: teamId,
+      name: team.displayName || "Unknown Team",
+      abbreviation: team.abbreviation || "NFL",
+      logo: team.logos?.[0]?.href || team.logo || "https://a.espncdn.com/i/teamlogos/nfl/500/nfl.png",
       color: team.color || "000000",
       score: halftimeScore,
       stats
     };
   };
 
-  const sfTeam = findTeamById("25") || { name: "49ers", score: 10, abbreviation: "SF", logo: "https://a.espncdn.com/i/teamlogos/nfl/500/sf.png" };
-  const kcTeam = findTeamById("12") || { name: "Chiefs", score: 3, abbreviation: "KC", logo: "https://a.espncdn.com/i/teamlogos/nfl/500/kc.png" };
+  // Dynamically take the two teams provided in the feed
+  const team1 = competitors[0] ? parseTeam(competitors[0]) : null;
+  const team2 = competitors[1] ? parseTeam(competitors[1]) : null;
+
+  if (!team1 || !team2) {
+    throw new Error("Could not parse team data from ESPN feed.");
+  }
 
   return {
-    team1: sfTeam as any,
-    team2: kcTeam as any,
+    team1,
+    team2,
     period: 2,
     clock: "0:00",
-    venue: competition.venue?.fullName || "Allegiant Stadium",
+    venue: competition.venue?.fullName || "Championship Venue",
     situation: {
-      lastPlayText: "Halftime in Las Vegas. SF leads 10-3.",
+      lastPlayText: "End of the first half. Analysis pending.",
       keyDrives: data?.drives?.previous?.slice(0, 5) || []
-    } as any
+    }
   };
 };
