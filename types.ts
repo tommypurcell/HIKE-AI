@@ -7,6 +7,7 @@ export interface TeamInfo {
   color: string;
   score: number;
   record?: string;
+  stats?: Record<string, string>;
 }
 
 export interface GameSummary {
@@ -17,7 +18,7 @@ export interface GameSummary {
   venue: string;
   situation?: {
     lastPlayText?: string;
-    downDistanceText?: string;
+    keyDrives?: any[];
   };
 }
 
@@ -33,6 +34,8 @@ export interface AnalysisResponse {
       keys: string[];
     };
   };
+  narrationScript: string;
+  thought?: string; // Captured reasoning from Gemini
 }
 
 export interface MascotImages {

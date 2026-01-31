@@ -1,76 +1,59 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
-import { AnalysisResponse } from "../types";
+import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-
-const analysisSchema = {
-  type: Type.OBJECT,
-  properties: {
-    halftimeRecap: {
-      type: Type.STRING,
-      description: "A professional TV broadcast recap of the first half events, momentum, and leading team.",
-    },
-    keysToWin: {
-      type: Type.OBJECT,
-      properties: {
-        team1: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            keys: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            }
-          }
-        },
-        team2: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            keys: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
-            }
-          }
-        }
-      }
-    }
-  },
-  required: ["halftimeRecap", "keysToWin"],
-};
-
-export const generateAnalysis = async (gameData: any): Promise<AnalysisResponse> => {
+export const generateAnalysis = async (summary: any): Promise<any> => {
+  // Initialize right before call as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+  
   const prompt = `
-    Analyze the following first-half NFL Super Bowl data and generate a broadcast-ready halftime commercial script.
+    You are a professional broadcast analyst. 
+    CURRENT CONTEXT: It is the 2025 Super Bowl (SB LIX) between the Kansas City Chiefs and the Philadelphia Eagles.
     
-    Data:
-    ${JSON.stringify(gameData)}
+    CRITICAL INSTRUCTION: 
+    1. Use GOOGLE SEARCH to find the ACTUAL halftime score and key highlights of the 2025 Super Bowl (Chiefs vs Eagles).
+    2. The provided local summary (if any) is for a DIFFERENT game. DISREGARD IT if it contradicts the 2025 live data.
+    3. Return a JSON object with exactly these fields:
+       - "mainPoints": (array of 5-7 punchy halftime bullet points)
+       - "halftimeRecap": (a 2-3 sentence summary paragraph)
+       - "narrationScript": (a broadcast-ready script for an AI avatar)
+       - "keysToWin": {
+           "team1": { "name": "Chiefs", "keys": ["key1", "key2"] },
+           "team2": { "name": "Eagles", "keys": ["key1", "key2"] }
+         }
     
-    Requirements:
-    1. Professional TV broadcast tone.
-    2. Clear, simple language suitable for an AI avatar narration.
-    3. Part 1: Halftime Recap. Explain what happened for each team, who is leading and why, key drives, and standout players.
-    4. Part 2: Second-Half Keys to Win. For each team, explain strategy, improvements needed, and what to keep doing well.
-    5. Do not mention APIs, data sources, or technical terms. 
-    6. No hype or speculation beyond what the data supports.
+    Ensure the JSON is valid and only includes factual data from the 2025 game.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: analysisSchema,
+        tools: [{ googleSearch: {} }],
+        temperature: 0.1,
       },
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Empty response from AI");
-    return JSON.parse(text) as AnalysisResponse;
+    const text = response.text || "";
+    
+    // Extract JSON from potential markdown block
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const cleanedJson = jsonMatch ? jsonMatch[0] : text;
+    
+    const parsed = JSON.parse(cleanedJson);
+
+    // Extract grounding chunks for source transparency
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const sources = groundingChunks
+      .filter((chunk: any) => chunk.web)
+      .map((chunk: any) => ({
+        title: chunk.web.title,
+        uri: chunk.web.uri
+      }));
+
+    return { ...parsed, sources };
   } catch (error) {
-    console.error("Gemini Error:", error);
-    throw error;
+    console.error("Gemini Search Error:", error);
+    throw new Error("The broadcast engine encountered an error fetching live 2025 data. Please try again.");
   }
 };
