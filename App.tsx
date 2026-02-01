@@ -15,11 +15,27 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
+<<<<<<< Updated upstream
         const rawData = await fetchGameData();
         setGameData(rawData);
         setSummary(parseGameSummary(rawData));
       } catch (err) {
         setError('Failed to load game statistics. Please try again later.');
+=======
+        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+          const selected = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        } else {
+          // Fallback: check if API key is in environment
+          const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+          setHasApiKey(!!apiKey);
+        }
+      } catch (err) {
+        console.error("API Key check error:", err);
+        // Fallback: check if API key is in environment
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        setHasApiKey(!!apiKey);
+>>>>>>> Stashed changes
       }
     };
     loadInitialData();
@@ -53,6 +69,7 @@ const App: React.FC = () => {
     }
   };
 
+<<<<<<< Updated upstream
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1e144a] via-[#4c2a86] to-[#6a42a1] text-white p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
@@ -147,6 +164,97 @@ const App: React.FC = () => {
               {error}
             </div>
           )}
+=======
+  const processToScripts = async () => {
+    if (!summary || !strategy) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await generateScripts(summary, strategy, { tone: scriptTone });
+      setAwayScript(result.awayScript);
+      setHomeScript(result.homeScript);
+      setCurrentStep('SCRIPTS');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFinalRender = async () => {
+    if (!hasApiKey) {
+      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+        await window.aistudio.openSelectKey();
+        setHasApiKey(true);
+      } else {
+        // Fallback: check environment variable
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+          setError('API key not found. Please set VITE_GEMINI_API_KEY in your environment variables.');
+          return;
+        }
+        setHasApiKey(true);
+      }
+    }
+    setCurrentStep('RENDER');
+    setError(null);
+
+    try {
+      const awayPromise = generateMascotVideo(awayScript, `${summary?.team2.name} Mascot`, awayMascotImage || undefined);
+      const homePromise = generateMascotVideo(homeScript, `${summary?.team1.name} Mascot`, homeMascotImage || undefined);
+
+      const [awayRes, homeRes] = await Promise.allSettled([awayPromise, homePromise]);
+
+      if (awayRes.status === 'fulfilled') setVideoAway(awayRes.value);
+      if (homeRes.status === 'fulfilled') setVideoHome(homeRes.value);
+
+      if (awayRes.status === 'rejected' && homeRes.status === 'rejected') {
+        throw new Error("Render quota exceeded or failed. Try again in a moment.");
+      }
+      
+      setCurrentStep('RESULTS');
+    } catch (err: any) {
+      setError(err.message);
+      setCurrentStep('SCRIPTS');
+    }
+  };
+
+  const renderStepIcon = (step: Step, label: string) => {
+    const steps: Step[] = ['ASSETS', 'DATA', 'STRATEGY', 'SCRIPTS', 'RENDER', 'RESULTS'];
+    const isActive = currentStep === step;
+    const isCompleted = steps.indexOf(currentStep) > steps.indexOf(step);
+    return (
+      <div className={`flex flex-col items-center gap-2 ${isActive ? 'text-red-600' : isCompleted ? 'text-zinc-400' : 'text-zinc-700'}`}>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 font-black text-xs transition-colors ${isActive ? 'border-red-600 bg-red-600 text-white' : isCompleted ? 'border-zinc-400 bg-zinc-400 text-black' : 'border-zinc-700'}`}>
+          {isCompleted ? <i className="fa-solid fa-check"></i> : steps.indexOf(step) + 1}
+        </div>
+        <span className="text-[8px] font-black uppercase tracking-tighter">{label}</span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-[#020202] text-white font-sans selection:bg-red-600 pb-40">
+      <div className="max-w-5xl mx-auto px-6 pt-12">
+        
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col">
+            <h1 className="text-3xl font-black tracking-tighter">HIKE <span className="text-red-600">ai</span></h1>
+            <p className="text-xs font-black uppercase tracking-widest text-zinc-500 mt-1">Halftime Insights and Key Evaluations</p>
+          </div>
+        </div>
+        
+        {/* Production Stepper */}
+        <div className="flex justify-between max-w-xl mx-auto mb-16 relative">
+          <div className="absolute top-4 left-0 right-0 h-px bg-zinc-900 -z-10"></div>
+          {renderStepIcon('ASSETS', 'Assets')}
+          {renderStepIcon('DATA', 'Data')}
+          {renderStepIcon('STRATEGY', 'Strategy')}
+          {renderStepIcon('SCRIPTS', 'Scripts')}
+          {renderStepIcon('RENDER', 'Render')}
+          {renderStepIcon('RESULTS', 'Broadcast')}
+>>>>>>> Stashed changes
         </div>
 
         {/* Game Stats Preview */}
