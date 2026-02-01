@@ -48,7 +48,7 @@ const parseImageData = (dataUrl: string) => {
  * Generates data-driven halftime analysis for both teams.
  */
 export const generateAnalysis = async (summary: any, mascotImages?: { swoop?: string, kcWolf?: string }): Promise<any> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   
   const textPart = {
     text: `
@@ -137,7 +137,7 @@ export const generateAnalysis = async (summary: any, mascotImages?: { swoop?: st
  * Generates a video for a specific mascot avatar using Veo 3.1.
  */
 export const generateMascotVideo = async (script: string, mascotName: string, imageBase64?: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   const sanitizedScript = script.replace(/["\n\r]/g, '').substring(0, 300);
   const videoPrompt = `Cinematic 3D animation of ${mascotName} delivering a high-energy halftime sports report. Professional stadium background. Script: ${sanitizedScript}`;
 
@@ -173,7 +173,7 @@ export const generateMascotVideo = async (script: string, mascotName: string, im
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
     if (!downloadLink) throw new Error("API completed but returned no video URI.");
     
-    const urlWithKey = `${downloadLink}${downloadLink.includes('?') ? '&' : '?'}key=${process.env.API_KEY}`;
+    const urlWithKey = `${downloadLink}${downloadLink.includes('?') ? '&' : '?'}key=${import.meta.env.VITE_GEMINI_API_KEY}`;
     const videoResponse = await fetch(urlWithKey);
     
     if (!videoResponse.ok) throw new Error(`Video stream fetch failed: ${videoResponse.statusText}`);

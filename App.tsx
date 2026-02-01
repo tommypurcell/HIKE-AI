@@ -173,15 +173,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="mb-20 space-y-4">
-          {!hasApiKey && (
-            <div className="bg-amber-900/20 border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between">
-              <div className="flex flex-col">
-                <p className="text-xs font-bold text-amber-500 uppercase tracking-widest">Paid API Key Required</p>
-                <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-[8px] text-amber-500/70 underline mt-1 uppercase font-bold tracking-tighter">Billing Details</a>
-              </div>
-              <button onClick={handleOpenKeySelection} className="px-4 py-2 bg-amber-500 text-black font-black text-[10px] rounded-lg uppercase tracking-widest">Select Key</button>
-            </div>
-          )}
+
           
           <button 
             onClick={handleGenerate}
